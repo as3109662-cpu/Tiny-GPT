@@ -1,108 +1,44 @@
-# TinyGPT
+#!/usr/bin/env python3
+"""One-shot completion from a NumPy checkpoint."""
 
-A GPT-style language model in **pure NumPy** — no PyTorch, no CUDA, no compile
-step. About **0.1–5M parameters**, sized to train on an Android phone in Termux
-with a few hundred MB of RAM.
+from __future__ import annotations
 
-```
-token + position embeddings
-  → N × (LayerNorm → causal self-attention → + → LayerNorm → GELU MLP → +)
-  → LayerNorm → tied linear head → next-token loss
-```
+import argparse
 
-## Layout
+import numpy as np
 
-```
-tinygpt/
-  config.py        presets, param count, RAM estimate
-  tokenizer.py     character-level + chat specials (128 ids)
-  model.py         transformer, backward pass, AdamW, generate
-  dataset.py       pretrain windows, 90/10 split, SFT masking
-  train.py         next-token pretraining
-  sft.py           lightweight chat fine-tune
-  generate.py      one-shot completion
-  chat.py          interactive CLI
-  utils.py         .npz checkpoints
-  runtime.py       BLAS thread cap (import first)
-  data/pretrain.md
-  data/chat.md
-```
+from runtime import setup
 
-## Presets
+setup()
 
-| name    | layers | heads | d_model | context | ~params | notes                    |
-|---------|--------|-------|---------|---------|---------|--------------------------|
-| nano    | 2      | 4     | 48      | 48      | 64K     | smoke test / tiny RAM    |
-| phone   | 4      | 4     | 128     | 128     | 0.82M   | Termux default           |
-| tiny    | 6      | 6     | 192     | 128     | 2.71M   | target 1–5M model        |
-| compact | 8      | 8     | 224     | 128     | 4.88M   | top of the band          |
+from tokenizer import Tokenizer  # noqa: E402
+from utils import load_ckpt  # noqa: E402
 
-Dropout is 0 on the first three (saves RAM and time). Linear layers have **no
-bias**; LayerNorm still has gain and bias. Input and output embeddings are **tied**.
 
-## Termux
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument("--ckpt", required=True)
+    p.add_argument("--prompt", default="A language model is")
+    p.add_argument("--tokens", type=int, default=80)
+    p.add_argument("--temperature", type=float, default=0.35)
+    p.add_argument("--top-k", type=int, default=12)
+    return p.parse_args()
 
-```
-pkg update
-pkg install python
-pip install numpy
-# copy this folder onto the phone, then:
-cd tinygpt
-python train.py --preset phone --max-steps 400
-python sft.py --ckpt out/best.npz --preset phone
-python chat.py --ckpt out/sft.npz
-```
 
-Optional: `export TINYGPT_THREADS=2` before running so OpenBLAS does not spawn
-one thread per big.LITTLE core.
+def main() -> None:
+    args = parse_args()
+    model, _ = load_ckpt(args.ckpt)
+    tok = Tokenizer()
+    ids = tok.encode(args.prompt)
+    x = np.asarray([ids], dtype=np.int32)
+    out = model.generate(
+        x,
+        max_new_tokens=args.tokens,
+        temperature=args.temperature,
+        top_k=args.top_k,
+    )
+    print(tok.decode(out[0].tolist()))
 
-If `pip install numpy` fails, try `pkg install python-numpy`.
 
-## Training
-
-Pretrain (`train.py`) samples windows from `data/pretrain.md`, 90/10 train/val,
-AdamW, cosine LR with warmup, grad clip 1.0. Checkpoints:
-
-- `out/best.npz` + `out/best.json` — lowest val loss
-- `out/last.npz` — most recent step
-
-SFT (`sft.py`) reads `### user` / `### assistant` blocks in `data/chat.md` and
-masks the prompt (`label = -1`) so the loss only lands on assistant tokens.
-
-```
-python train.py --preset nano --max-steps 80     # sanity check, ~minutes
-python train.py --preset tiny --grad-ckpt        # 2.7M, lower peak RAM
-python generate.py --ckpt out/best.npz --prompt "A language model is"
-```
-
-Flags worth knowing: `--batch-size`, `--lr`, `--resume out/last.npz`,
-`--threads 2`.
-
-## Chat
-
-```
-python chat.py --ckpt out/sft.npz
-you> What is self-attention?
-gpt> ...
-```
-
-`/reset` clears context, `/temp 0.7` and `/tok 60` tweak decoding, `/q` exits.
-
-Format the model sees:
-
-```
-<|user|>
-your question
-<|assistant|>
-the reply<|end|>
-```
-
-## Memory
-
-Rough peak RSS is `12 bytes × params` (fp32 weights + Adam m/v) plus activations.
-`--grad-ckpt` recomputes each block in backward and cuts activation RAM.
-Keep `--batch-size 2` or `4`. Do not raise BLAS threads above 2–4 on a phone.
-
-This is a teaching model. The bundled markdown is small on purpose — the nano
-preset will memorize it. Swap `data/pretrain.md` for your own notes to learn
-something you actually care about.
+if __name__ == "__main__":
+    main()

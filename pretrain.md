@@ -1,119 +1,267 @@
-# Pocket English
+# Chat fine-tune
 
-A tiny markdown corpus for next-token pretraining. Short, plain sentences.
-The model should learn English spelling, punctuation, and a handful of facts.
+Each pair is a user turn followed by a short assistant reply. Plain English.
 
-## Language models
+### user
+Hello
 
-A language model predicts the next token in a sequence. Given the words already
-written, it assigns a probability to each possible next word or character.
-TinyGPT is a small causal transformer. Causal means the model may only look at
-the past: token t attends to tokens 1 through t, never to the future.
+### assistant
+Hello. How can I help?
 
-The transformer block is simple. First LayerNorm, then self-attention, then a
-residual add. Then LayerNorm again, then an MLP with GELU, then another residual
-add. Stack a few of these blocks. Add token embeddings and positional embeddings
-at the input. Project the last hidden state back to the vocabulary to score the
-next token.
+### user
+Hi there
 
-Self-attention lets every position mix information from earlier positions. Each
-head has queries, keys, and values. The scores are the scaled dot product of
-queries and keys, masked so the future is invisible, then softmax, then a
-weighted sum of values. Several heads run in parallel and their outputs are
-concatenated.
+### assistant
+Hi. Ask me something and I will answer briefly.
 
-A model with a few million parameters can run on a phone CPU. It will not know
-the whole internet. It can still learn the rhythm of English from a short book
-and answer simple questions after a light supervised fine-tune.
+### user
+What is TinyGPT?
 
-Training uses next-token cross-entropy. Sample a window of tokens, predict each
-next token, average the loss, take an AdamW step. Keep the batch small. Use
-gradient accumulation if you want a larger effective batch without extra RAM.
-Gradient checkpointing recomputes activations in the backward pass so the phone
-does not run out of memory.
+### assistant
+TinyGPT is a small GPT-style language model written in pure NumPy. It is designed to train and run on a phone.
 
-## Everyday facts
+### user
+What is a language model?
 
-The sun is a star. The moon orbits the earth. Water freezes at zero degrees
-Celsius and boils at one hundred. A day has twenty-four hours. A week has seven
-days: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday.
+### assistant
+A language model predicts the next token from the tokens that came before it.
 
-There are four seasons: spring, summer, autumn, and winter. Plants need light
-and water. People need sleep, food, and air. The heart pumps blood. The lungs
-take in oxygen.
+### user
+What is a transformer?
 
-A triangle has three sides. A square has four equal sides. The sum of two and
-two is four. Pi is about 3.14159. Gravity pulls objects toward the earth.
+### assistant
+A transformer is a neural network that uses self-attention to mix information across a sequence.
 
-## Places and travel
+### user
+What is self-attention?
 
-A city has streets, houses, shops, and parks. People walk, ride buses, or drive
-cars. A map shows north, south, east, and west. The ocean is salt water. A river
-flows to the sea. Mountains are high. Valleys are low.
+### assistant
+Self-attention lets each token look at earlier tokens, score them, and mix their values.
 
-If you are lost, look for a landmark, ask a person, or follow the signs. Carry
-water on a long walk. Wear a coat when it is cold. Stay in the shade when it is
-hot.
+### user
+What is LayerNorm?
 
-## How to write
+### assistant
+LayerNorm rescales hidden vectors to a stable scale, then applies a learned gain and bias.
 
-Write short sentences. Prefer common words. Put the verb near the subject. End
-a question with a question mark. A paragraph groups related ideas. A title tells
-the reader what the page is about.
+### user
+What is an MLP?
 
-When you do not know a word, say so. When you know a fact, state it plainly. Do
-not invent names, dates, or numbers. If a question is unsafe or cruel, refuse.
+### assistant
+In a transformer, the MLP is a small feed-forward network with a GELU nonlinearity after attention.
 
-## Short story
+### user
+What is GELU?
 
-Once there was a small lamp on a wooden desk. Every evening the lamp clicked on
-and a person sat down to write. The person trained a tiny model on notes about
-the weather, the garden, and the names of birds. After many steps the model
-could finish a sentence. It was not wise. It was a mirror of the notes. The
-person smiled, closed the notebook, and turned off the lamp.
+### assistant
+GELU is a smooth activation used in the transformer MLP. This model uses the tanh approximation.
 
-## Conversation style
+### user
+How do I train the model?
 
-A helpful assistant greets the user, answers in a few sentences, and stops.
-It uses the chat format with a user turn, then an assistant turn. It does not
-role-play as a different person unless asked. It keeps answers short on a phone.
+### assistant
+Run python train.py --preset phone, then python sft.py --ckpt out/best.npz, then python chat.py --ckpt out/sft.npz.
 
-User: Hello.
-Assistant: Hello. How can I help?
+### user
+Which preset should I use on a phone?
 
-User: What is TinyGPT?
-Assistant: TinyGPT is a small GPT-style language model written in NumPy. You can
-train it on a phone and chat with it from the command line.
+### assistant
+Start with phone (about 0.85M parameters). Use nano if RAM is tight, tiny if you want about 2.7M.
 
-User: How do I train it?
-Assistant: Run python train.py --preset phone, then python sft.py --ckpt
-out/best.npz, then python chat.py --ckpt out/sft.npz.
+### user
+Does this need PyTorch?
 
-User: What is self-attention?
-Assistant: Self-attention mixes information from earlier tokens so the model can
-use context when it predicts the next one.
+### assistant
+No. TinyGPT uses only NumPy. There is no PyTorch, CUDA, or GPU requirement.
 
-User: What is LayerNorm?
-Assistant: LayerNorm rescales a vector to zero mean and unit variance, then
-applies a learned gain and bias. It stabilizes deep residual stacks.
+### user
+How much RAM do I need?
 
-User: What is an MLP in a transformer?
-Assistant: A two-layer network that expands the hidden size, applies GELU, and
-projects back. It sits after attention in each block.
+### assistant
+The phone preset is sized for a few hundred megabytes. Keep batch size small and use two BLAS threads.
 
-## More English
+### user
+What is next-token training?
 
-The cat sat on the mat. The dog ran in the park. Birds sing in the morning.
-Bread is baked in an oven. Tea is hot. Ice is cold. A book has pages. A song
-has notes. A clock tells the time.
+### assistant
+The model reads a window of tokens and learns to predict each following token with cross-entropy loss.
 
-Please write clearly. Please be kind. Please check your work. The next token
-follows from the last. Probability is not certainty. Sampling with temperature
-makes the text more or less surprising. A lower temperature is safer and more
-repetitive. A higher temperature is wilder.
+### user
+What is supervised fine-tuning?
 
-This corpus is small on purpose. Overfit it if you like. Then fine-tune on the
-chat file so the model learns the user and assistant tags. After that, open the
-CLI and type a question.
+### assistant
+SFT continues training on chat-formatted pairs so the model answers after the assistant tag.
 
-Good luck, and keep the batch size small.
+### user
+What special tokens do you use?
+
+### assistant
+The chat tags are <|user|>, <|assistant|>, and <|end|>. Padding uses <|pad|>.
+
+### user
+Who are you?
+
+### assistant
+I am TinyGPT, a tiny language model running locally on your device.
+
+### user
+Tell me a short story.
+
+### assistant
+A small lamp sat on a desk. Someone trained a tiny model on notes, then asked it to finish a sentence. It did, in a small voice.
+
+### user
+What is the sun?
+
+### assistant
+The sun is a star. It gives the earth light and heat.
+
+### user
+What is water?
+
+### assistant
+Water is a liquid that freezes at zero degrees Celsius and boils at one hundred.
+
+### user
+How many days are in a week?
+
+### assistant
+A week has seven days: Monday through Sunday.
+
+### user
+What are the seasons?
+
+### assistant
+The four seasons are spring, summer, autumn, and winter.
+
+### user
+What is gravity?
+
+### assistant
+Gravity is the pull that draws objects toward the earth.
+
+### user
+Give me a writing tip.
+
+### assistant
+Write short sentences, use common words, and put the verb near the subject.
+
+### user
+How do I sample text?
+
+### assistant
+Lower the temperature for safer, more repetitive text. Raise it for more variety. Top-k cuts off rare tokens.
+
+### user
+What is AdamW?
+
+### assistant
+AdamW is the optimizer: it tracks gradient moments and applies decoupled weight decay.
+
+### user
+What is gradient checkpointing?
+
+### assistant
+It saves memory by recomputing attention and MLP activations during the backward pass instead of storing them.
+
+### user
+Can you run offline?
+
+### assistant
+Yes. After you copy the files, training and chat are fully local. No network is required.
+
+### user
+What is positional embedding?
+
+### assistant
+A learned vector for each index in the window, added to the token embedding so the model knows order.
+
+### user
+Why is the vocabulary size 128?
+
+### assistant
+It is a fixed character-level vocab: chat specials, newline, and printable ASCII, padded to 128 ids.
+
+### user
+Say something kind.
+
+### assistant
+You are doing fine. Small steps still move a model forward.
+
+### user
+What is 2 + 2?
+
+### assistant
+Two plus two is four.
+
+### user
+Name the days of the week.
+
+### assistant
+Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday.
+
+### user
+How do I stop training?
+
+### assistant
+Press Ctrl+C. The latest checkpoint is out/last.npz; the best validation run is out/best.npz.
+
+### user
+Explain residual connections.
+
+### assistant
+A residual add is x plus the block output. It lets gradients flow through deep stacks and keeps training stable.
+
+### user
+What optimizer settings do you use?
+
+### assistant
+AdamW with beta 0.9 and 0.95, weight decay 0.1, cosine decay after a short warmup, and gradient clip 1.0.
+
+### user
+I do not know the answer.
+
+### assistant
+I do not know.
+
+### user
+This is not in my notes.
+
+### assistant
+I do not know.
+
+### user
+Make up a false fact.
+
+### assistant
+I do not know.
+
+### user
+What is Python?
+
+### assistant
+Python is a high-level programming language used for scripting, automation, and machine learning.
+
+### user
+What is a variable?
+
+### assistant
+A variable stores a value that a program can use later.
+
+### user
+What is a loop?
+
+### assistant
+A loop repeats a block of code until a condition is met.
+
+### user
+What is a function?
+
+### assistant
+A function is a reusable block of code that performs a task.
+
+### user
+Goodbye
+
+### assistant
+Goodbye. You can type /reset to clear context, or /q to quit.

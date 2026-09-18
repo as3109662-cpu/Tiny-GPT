@@ -1,105 +1,87 @@
-#!/usr/bin/env python3
-"""Minimal local chat CLI (NumPy).
+# Pocket English
 
-    python chat.py --ckpt out/sft.npz
+A tiny markdown corpus for next-token pretraining. Short, plain sentences.
+The model should learn English spelling, punctuation, and a handful of facts.
 
-Commands: /reset  /temp 0.7  /tok 80  /q
-"""
+## Language models
 
-from __future__ import annotations
+A language model predicts the next token in a sequence. Given the words already written, it assigns a probability to each possible next word or character.
+TinyGPT is a small causal transformer. Causal means the model may only look at the past: token t attends to earlier tokens and never to the future.
 
-import argparse
-import sys
+The transformer block is simple. First LayerNorm, then self-attention, then a residual add. Then LayerNorm again, then an MLP with GELU, then another residual add. Stack a few of these blocks. Add token embeddings and positional embeddings at the input. Project the last hidden state back to the vocabulary to score the next token.
 
-import numpy as np
+Self-attention lets every position mix information from earlier positions. Each head has queries, keys, and values. The scores are the scaled dot product of queries and keys, masked so the future is invisible, then softmax, then a weighted sum of values. Several heads run in parallel and their outputs are concatenated.
 
-from runtime import setup
+A model with a few million parameters can run on a phone CPU. It will not know the whole internet. It can still learn the rhythm of English from a short book and answer simple questions after a light supervised fine-tune.
 
-setup()
+Training uses next-token cross-entropy. Sample a window of tokens, predict each next token, average the loss, take an AdamW step. Keep the batch small. Use gradient accumulation if you want a larger effective batch without extra RAM.
+Gradient checkpointing recomputes activations in the backward pass so the phone does not run out of memory.
 
-from tokenizer import Tokenizer  # noqa: E402
-from utils import load_ckpt  # noqa: E402
+## Everyday facts
 
+The sun is a star. The moon orbits the earth. Water freezes at zero degrees Celsius and boils at one hundred. A day has twenty-four hours. A week has seven days: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday.
 
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Chat with a TinyGPT checkpoint")
-    p.add_argument("--ckpt", required=True)
-    p.add_argument("--temperature", type=float, default=0.8)
-    p.add_argument("--top-k", type=int, default=40)
-    p.add_argument("--max-tokens", type=int, default=80)
-    return p.parse_args()
+There are four seasons: spring, summer, autumn, and winter. Plants need light and water. People need sleep, food, and air. The heart pumps blood. The lungs take in oxygen.
 
+A triangle has three sides. A square has four equal sides. The sum of two and two is four. Pi is about 3.14159. Gravity pulls objects toward the earth.
 
-def generate_reply(
-    model,
-    tok: Tokenizer,
-    history: str,
-    user: str,
-    temperature: float,
-    top_k: int,
-    max_tokens: int,
-) -> str:
-    prompt = history + f"<|user|>\n{user}\n<|assistant|>\n"
-    ids = tok.encode(prompt)
-    block = model.config.block_size
-    if len(ids) >= block:
-        ids = ids[-(block - 1) :]
-    x = np.asarray([ids], dtype=np.int32)
-    eos = tok.encode("<|end|>")[0]
-    out = model.generate(
-        x,
-        max_new_tokens=max_tokens,
-        temperature=temperature,
-        top_k=top_k,
-        eos_id=eos,
-    )
-    new_ids = out[0, len(ids) :].tolist()
-    if eos in new_ids:
-        new_ids = new_ids[: new_ids.index(eos)]
-    return tok.decode(new_ids).strip()
+## Places and travel
 
+A city has streets, houses, shops, and parks. People walk, ride buses, or drive cars. A map shows north, south, east, and west. The ocean is salt water. A river flows to the sea. Mountains are high. Valleys are low.
 
-def main() -> None:
-    args = parse_args()
-    model, _blob = load_ckpt(args.ckpt)
-    tok = Tokenizer()
-    temp, max_tok = args.temperature, args.max_tokens
-    history = ""
-    n = model.n_params()
-    print(f"TinyGPT chat  numpy  params={n:,}  T={model.config.block_size}")
-    print("type a message, or /reset  /temp 0.7  /tok 60  /q")
-    print("-" * 48)
-    while True:
-        try:
-            user = input("you> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            break
-        if not user:
-            continue
-        if user in {"/q", "/quit", "/exit"}:
-            break
-        if user == "/reset":
-            history = ""
-            print("(context cleared)")
-            continue
-        if user.startswith("/temp"):
-            parts = user.split()
-            if len(parts) == 2:
-                temp = float(parts[1])
-                print(f"temperature={temp}")
-            continue
-        if user.startswith("/tok"):
-            parts = user.split()
-            if len(parts) == 2:
-                max_tok = int(parts[1])
-                print(f"max_tokens={max_tok}")
-            continue
-        reply = generate_reply(model, tok, history, user, temp, args.top_k, max_tok)
-        history += f"<|user|>\n{user}\n<|assistant|>\n{reply}<|end|>"
-        sys.stdout.write(f"gpt> {reply}\n")
-        sys.stdout.flush()
+If you are lost, look for a landmark, ask a person, or follow the signs. Carry water on a long walk. Wear a coat when it is cold. Stay in the shade when it is hot.
 
+## How to write
 
-if __name__ == "__main__":
-    main()
+Write short sentences. Prefer common words. Put the verb near the subject. End a question with a question mark. A paragraph groups related ideas. A title tells the reader what the page is about.
+
+When you do not know a word, say so. When you know a fact, state it plainly. Do not invent names, dates, or numbers. If a question is unsafe or cruel, refuse.
+
+## Short story
+
+Once there was a small lamp on a wooden desk. Every evening the lamp clicked on and a person sat down to write. The person trained a tiny model on notes about the weather, the garden, and the names of birds. After many steps the model could finish a sentence. It was not wise. It was a mirror of the notes. The person smiled, closed the notebook, and turned off the lamp.
+
+## Conversation style
+
+A helpful assistant greets the user, answers in a few sentences, and stops. It uses the chat format with a user turn, then an assistant turn. It does not role-play as a different person unless asked. It keeps answers short on a phone.
+
+User: Hello.
+Assistant: Hello. How can I help?
+
+User: What is TinyGPT?
+Assistant: TinyGPT is a small GPT-style language model written in NumPy. You can train it on a phone and chat with it from the command line.
+
+User: How do I train it?
+Assistant: Run python train.py --preset phone, then python sft.py --ckpt out/best.npz, then python chat.py --ckpt out/sft.npz.
+
+User: What is self-attention?
+Assistant: Self-attention mixes information from earlier tokens so the model can use context when it predicts the next one.
+
+User: What is LayerNorm?
+Assistant: LayerNorm rescales a vector to zero mean and unit variance, then applies a learned gain and bias. It stabilizes deep residual stacks.
+
+User: What is an MLP in a transformer?
+Assistant: A two-layer network that expands the hidden size, applies GELU, and projects back. It sits after attention in each block.
+
+## More English
+
+The cat sat on the mat. The dog ran in the park. Birds sing in the morning. Bread is baked in an oven. Tea is hot. Ice is cold. A book has pages. A song has notes. A clock tells the time.
+
+Please write clearly. Please be kind. Please check your work. The next token follows from the last. Probability is not certainty. Sampling with temperature makes the text more or less surprising. A lower temperature is safer and more repetitive. A higher temperature is wilder.
+
+This corpus is small on purpose. Overfit it if you like. Then fine-tune on the chat file so the model learns the user and assistant tags. After that, open the CLI and type a question.
+
+Good luck, and keep the batch size small.
+
+## Safety and honesty
+
+If a question is not known, say so plainly. If the answer is not in the notes, do not invent facts. Helpful assistants prefer truth over style. They state uncertainty instead of pretending to know.
+
+User: Who won the 2025 World Cup?
+Assistant: I do not know.
+
+User: What is the capital of France?
+Assistant: Paris is the capital of France.
+
+User: Who is the president of the moon?
+Assistant: I do not know.
