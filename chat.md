@@ -1,169 +1,267 @@
-# TinyGPT
+# Chat fine-tune
 
-A GPT-style language model in pure NumPy — no PyTorch, no CUDA, no compile step. About 0.1–5M parameters, sized to train on an Android phone in Termux with a few hundred MB of RAM.
+Each pair is a user turn followed by a short assistant reply. Plain English.
 
-```
-token + position embeddings
-  → N × (LayerNorm → causal self-attention → + → LayerNorm → GELU MLP → +)
-  → LayerNorm → tied linear head → next-token loss
-```
+### user
+Hello
 
-## What this repo is
+### assistant
+Hello. How can I help?
 
-This project is a compact, phone-friendly training loop for a tiny GPT-style language model using only NumPy. It includes:
+### user
+Hi there
 
-- next-token pretraining on a markdown corpus
-- train/validation split
-- lightweight supervised fine-tune for chat behavior
-- local CLI chat inference
-- compact checkpointing and model presets
-- Termux-friendly runtime settings to avoid CPU thrash
+### assistant
+Hi. Ask me something and I will answer briefly.
 
-## Layout
+### user
+What is TinyGPT?
 
-```
-tinygpt/
-  config.py        presets, param count, RAM estimate
-  tokenizer.py     character-level + chat specials (128 ids)
-  model.py         transformer, backward pass, AdamW, generate
-  dataset.py       pretrain windows, 90/10 split, SFT masking
-  train.py         next-token pretraining
-  sft.py           lightweight chat fine-tune
-  generate.py      one-shot completion
-  chat.py          interactive CLI
-  utils.py         .npz checkpoints
-  runtime.py       BLAS thread cap (import first)
-  data/pretrain.md
-  data/chat.md
-```
+### assistant
+TinyGPT is a small GPT-style language model written in pure NumPy. It is designed to train and run on a phone.
 
-## Presets
+### user
+What is a language model?
 
-| name    | layers | heads | d_model | context | ~params | notes                  |
-|---------|--------|-------|---------|---------|---------|------------------------|
-| nano    | 2      | 4     | 48      | 48      | 64K     | smoke test / tiny RAM  |
-| phone   | 4      | 4     | 128     | 128     | 0.82M   | Termux default         |
-| tiny    | 6      | 6     | 192     | 128     | 2.71M   | target 1–5M model      |
-| compact | 8      | 8     | 224     | 128     | 4.88M   | top of the band        |
+### assistant
+A language model predicts the next token from the tokens that came before it.
 
-Dropout is 0 on the first three (saves RAM and time). Linear layers have no bias; LayerNorm still has gain and bias. Input and output embeddings are tied.
+### user
+What is a transformer?
 
-## Termux quick start
+### assistant
+A transformer is a neural network that uses self-attention to mix information across a sequence.
 
-```bash
-pkg update
-pkg install python
-pip install numpy
+### user
+What is self-attention?
 
-cd tinygpt
-export TINYGPT_THREADS=2
+### assistant
+Self-attention lets each token look at earlier tokens, score them, and mix their values.
 
-python train.py --preset nano --max-steps 80
-python sft.py --ckpt out/best.npz --preset nano
-python chat.py --ckpt out/sft.npz
-```
+### user
+What is LayerNorm?
 
-For a fuller model:
+### assistant
+LayerNorm rescales hidden vectors to a stable scale, then applies a learned gain and bias.
 
-```bash
-python train.py --preset phone --max-steps 400
-python sft.py --ckpt out/best.npz --preset phone
-python chat.py --ckpt out/sft.npz
-```
+### user
+What is an MLP?
 
-If `pip install numpy` fails, try:
+### assistant
+In a transformer, the MLP is a small feed-forward network with a GELU nonlinearity after attention.
 
-```bash
-pkg install python-numpy
-```
+### user
+What is GELU?
 
-## Training
+### assistant
+GELU is a smooth activation used in the transformer MLP. This model uses the tanh approximation.
 
-Pretrain (`train.py`) samples windows from `data/pretrain.md`, performs a 90/10 train/val split, uses AdamW, cosine LR with warmup, and gradient clipping. Checkpoints:
+### user
+How do I train the model?
 
-- `out/best.npz` + `out/best.json` — lowest validation loss
-- `out/last.npz` — most recent step
+### assistant
+Run python train.py --preset phone, then python sft.py --ckpt out/best.npz, then python chat.py --ckpt out/sft.npz.
 
-SFT (`sft.py`) reads `### user` / `### assistant` blocks in `data/chat.md` and masks the prompt (`label = -1`) so the loss only lands on assistant tokens.
+### user
+Which preset should I use on a phone?
 
-```bash
-python train.py --preset nano --max-steps 80      # smoke test, minutes
-python train.py --preset tiny --grad-ckpt         # 2.7M, lower peak RAM
-python generate.py --ckpt out/best.npz --prompt "A language model is"
-```
+### assistant
+Start with phone (about 0.85M parameters). Use nano if RAM is tight, tiny if you want about 2.7M.
 
-Helpful flags:
+### user
+Does this need PyTorch?
 
-- `--batch-size`
-- `--lr`
-- `--resume out/last.npz`
-- `--threads 2`
-- `--grad-ckpt`
+### assistant
+No. TinyGPT uses only NumPy. There is no PyTorch, CUDA, or GPU requirement.
 
-## Chat
+### user
+How much RAM do I need?
 
-```bash
-python chat.py --ckpt out/sft.npz
-```
+### assistant
+The phone preset is sized for a few hundred megabytes. Keep batch size small and use two BLAS threads.
 
-Example:
+### user
+What is next-token training?
 
-```text
-you> What is self-attention?
-gpt> Self-attention lets each token look at earlier tokens, score them, and mix their values.
-```
+### assistant
+The model reads a window of tokens and learns to predict each following token with cross-entropy loss.
 
-Commands:
+### user
+What is supervised fine-tuning?
 
-- `/reset` clears context
-- `/temp 0.7` changes decoding temperature
-- `/tok 60` changes max generation tokens
-- `/q` exits
+### assistant
+SFT continues training on chat-formatted pairs so the model answers after the assistant tag.
 
-Format seen by the model:
+### user
+What special tokens do you use?
 
-```text
-<|user|>
-your question
-<|assistant|>
-the reply<|end|>
-```
+### assistant
+The chat tags are <|user|>, <|assistant|>, and <|end|>. Padding uses <|pad|>.
 
-## Good practice for mobile training
+### user
+Who are you?
 
-- keep `--preset nano` or `phone` for Termux
-- use `TINYGPT_THREADS=2` or lower
-- keep `--batch-size` small
-- prefer `grad-ckpt` when RAM is tight
-- use short, clean markdown data instead of noisy large dumps
-- do a small smoke test first before long pretraining runs
+### assistant
+I am TinyGPT, a tiny language model running locally on your device.
 
-## Hallucination control
+### user
+Tell me a short story.
 
-Small models can invent text. To reduce garbage output on a phone:
+### assistant
+A small lamp sat on a desk. Someone trained a tiny model on notes, then asked it to finish a sentence. It did, in a small voice.
 
-- lower temperature (`0.2` to `0.4` is safer than `0.8`)
-- keep `top-k` small (example: 8–20)
-- use chat fine-tuning examples with clear refusal patterns
-- keep the dataset concise and factual
-- if the model is unsure, teach it to answer: `I do not know.`
+### user
+What is the sun?
 
-This is a teaching model. The bundled markdown is small on purpose — the nano preset will memorize it. Swap `data/pretrain.md` for your own notes to learn something you actually care about.
+### assistant
+The sun is a star. It gives the earth light and heat.
 
-## Current repo status
+### user
+What is water?
 
-This repository is already in the correct direction for a Termux-friendly, NumPy-only tiny GPT project. The main remaining work is practical usage:
+### assistant
+Water is a liquid that freezes at zero degrees Celsius and boils at one hundred.
 
-1. fill `data/pretrain.md` with your corpus
-2. fill `data/chat.md` with user/assistant examples
-3. run a small smoke test
-4. then train on the phone preset
-5. then run local chat inference
+### user
+How many days are in a week?
 
-## Releases
+### assistant
+A week has seven days: Monday through Sunday.
 
-No releases published yet.
+### user
+What are the seasons?
 
-## Languages
+### assistant
+The four seasons are spring, summer, autumn, and winter.
 
-Python 100%
+### user
+What is gravity?
+
+### assistant
+Gravity is the pull that draws objects toward the earth.
+
+### user
+Give me a writing tip.
+
+### assistant
+Write short sentences, use common words, and put the verb near the subject.
+
+### user
+How do I sample text?
+
+### assistant
+Lower the temperature for safer, more repetitive text. Raise it for more variety. Top-k cuts off rare tokens.
+
+### user
+What is AdamW?
+
+### assistant
+AdamW is the optimizer: it tracks gradient moments and applies decoupled weight decay.
+
+### user
+What is gradient checkpointing?
+
+### assistant
+It saves memory by recomputing attention and MLP activations during the backward pass instead of storing them.
+
+### user
+Can you run offline?
+
+### assistant
+Yes. After you copy the files, training and chat are fully local. No network is required.
+
+### user
+What is positional embedding?
+
+### assistant
+A learned vector for each index in the window, added to the token embedding so the model knows order.
+
+### user
+Why is the vocabulary size 128?
+
+### assistant
+It is a fixed character-level vocab: chat specials, newline, and printable ASCII, padded to 128 ids.
+
+### user
+Say something kind.
+
+### assistant
+You are doing fine. Small steps still move a model forward.
+
+### user
+What is 2 + 2?
+
+### assistant
+Two plus two is four.
+
+### user
+Name the days of the week.
+
+### assistant
+Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday.
+
+### user
+How do I stop training?
+
+### assistant
+Press Ctrl+C. The latest checkpoint is out/last.npz; the best validation run is out/best.npz.
+
+### user
+Explain residual connections.
+
+### assistant
+A residual add is x plus the block output. It lets gradients flow through deep stacks and keeps training stable.
+
+### user
+What optimizer settings do you use?
+
+### assistant
+AdamW with beta 0.9 and 0.95, weight decay 0.1, cosine decay after a short warmup, and gradient clip 1.0.
+
+### user
+I do not know the answer.
+
+### assistant
+I do not know.
+
+### user
+This is not in my notes.
+
+### assistant
+I do not know.
+
+### user
+Make up a false fact.
+
+### assistant
+I do not know.
+
+### user
+What is Python?
+
+### assistant
+Python is a high-level programming language used for scripting, automation, and machine learning.
+
+### user
+What is a variable?
+
+### assistant
+A variable stores a value that a program can use later.
+
+### user
+What is a loop?
+
+### assistant
+A loop repeats a block of code until a condition is met.
+
+### user
+What is a function?
+
+### assistant
+A function is a reusable block of code that performs a task.
+
+### user
+Goodbye
+
+### assistant
+Goodbye. You can type /reset to clear context, or /q to quit.
