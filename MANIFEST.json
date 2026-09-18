@@ -1,0 +1,20 @@
+{
+  "name": "TinyGPT",
+  "runtime": "numpy",
+  "files": [
+    "README.md",
+    "requirements.txt",
+    "config.py",
+    "runtime.py",
+    "tokenizer.py",
+    "model.py",
+    "dataset.py",
+    "utils.py",
+    "train.py",
+    "sft.py",
+    "generate.py",
+    "chat.py",
+    "data/pretrain.md",
+    "data/chat.md"
+  ]
+}

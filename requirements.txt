@@ -1,0 +1,3 @@
+# TinyGPT — NumPy only. No PyTorch, no CUDA wheels, no compile step.
+# Termux: pkg install python; pip install -r requirements.txt
+numpy>=1.24.0
